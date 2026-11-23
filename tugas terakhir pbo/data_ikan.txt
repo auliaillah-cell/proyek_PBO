@@ -1,0 +1,10 @@
+1|tongkol|Ikan Air Asin|20000.0|40.0
+2|gabus|Ikan Air Tawar|15000.0|190.0
+3|hiu|Ikan Air Asin|50000.0|60.0
+5|udang|Ikan Air Asin|200000.0|84.0
+6|kepiting|Ikan Air Asin|70000.0|60.0
+7|Ikan Mas|Ikan Air Tawar|50000.0|50.0
+8|patin|Ikan Air Tawar|60000.0|70.0
+9|Bawal Air Tawar|Ikan Air Tawar|30000.0|70.0
+10|pari|Ikan Air Asin|100000.0|70.0
+11|salmon|Ikan Air Asin|400000.0|20.0
