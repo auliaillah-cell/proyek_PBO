@@ -7,6 +7,7 @@ package perikanan;
 // Mengimpor class untuk membaca dan menulis data ke file.
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.io.BufferedReader;
@@ -132,13 +133,50 @@ public class ManajemenIkan {
                           double hargaPerKg, double stokKg,
                           LocalDate tanggalMasuk) {
 
-        // Jika jenisnya ikan air tawar, buat objek IkanAirTawar.
-        if ("Ikan Air Tawar".equals(jenis)) {
-            return new IkanAirTawar(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+        switch (jenis) {
+            case "Ikan Tongkol":
+                return new IkanTongkol(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Cakalang":
+                return new IkanCakalang(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Tuna":
+                return new IkanTuna(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Kembung":
+                return new IkanKembung(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Tenggiri":
+                return new IkanTenggiri(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Bawal Putih":
+                return new IkanBawalPutih(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Kakap":
+                return new IkanKakap(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Kerapu":
+                return new IkanKerapu(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Baronang":
+                return new IkanBaronang(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Layang":
+                return new IkanLayang(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Selar":
+                return new IkanSelar(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Teri":
+                return new IkanTeri(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Bandeng":
+                return new IkanBandeng(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Manyung":
+                return new IkanManyung(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Pari":
+                return new IkanPari(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Cumi":
+                return new IkanCumi(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Lemuru":
+                return new IkanLemuru(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Dorang":
+                return new IkanDorang(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Tongkol Komo":
+                return new IkanTongkolKomo(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            case "Ikan Sarden":
+                return new IkanSarden(id, nama, hargaPerKg, stokKg, tanggalMasuk);
+            default:
+                throw new IllegalArgumentException("Jenis ikan tidak terdaftar: " + jenis);
         }
-
-        // Jika jenisnya ikan air asin, buat objek IkanAirAsin.
-        return new IkanAirAsin(id, nama, hargaPerKg, stokKg, tanggalMasuk);
     }
 
     // Method untuk menampilkan seluruh data ikan.
@@ -194,6 +232,43 @@ public class ManajemenIkan {
 
         // Mengembalikan null jika data tidak ditemukan.
         return null;
+    }
+
+    // Mengembalikan salinan daftar ikan untuk pilihan pada form transaksi.
+    public Ikan[] getDaftarIkan() {
+        return daftarIkan.toArray(new Ikan[0]);
+    }
+
+    // Mengurangi stok ikan dan mencatatnya sebagai transaksi pengeluaran.
+    public boolean kurangiStokIkan(int id, double jumlahPengurangan) {
+        Ikan ikan = cariIkanById(id);
+        if (ikan == null) {
+            System.out.println("Data ikan tidak ditemukan.");
+            return false;
+        }
+        if (Double.isNaN(jumlahPengurangan)
+                || Double.isInfinite(jumlahPengurangan)
+                || jumlahPengurangan <= 0) {
+            System.out.println("Jumlah pengurangan harus lebih besar dari 0.");
+            return false;
+        }
+        if (jumlahPengurangan > ikan.getStokKg()) {
+            System.out.println("Stok tidak mencukupi. Stok tersedia hanya "
+                    + ikan.getStokKg() + " kg.");
+            return false;
+        }
+
+        double sisaStok = ikan.getStokKg() - jumlahPengurangan;
+        if (sisaStok < 0) {
+            System.out.println("Pengurangan stok dibatalkan karena hasilnya negatif.");
+            return false;
+        }
+        ikan.setStokKg(sisaStok);
+        catatTransaksi(ikan, "Pengurangan Stok", null, null);
+        simpanSemuaData();
+        System.out.println("Stok ikan berhasil dikurangi. Sisa stok: "
+                + sisaStok + " kg.");
+        return true;
     }
 
     // Method untuk mengubah data ikan berdasarkan ID.
@@ -438,6 +513,18 @@ public class ManajemenIkan {
         }
     }
 
+    // Menyediakan data transaksi terstruktur untuk tampilan tabel pada GUI.
+    public List<DataTransaksi> getRiwayatTransaksiData() {
+        ArrayList<DataTransaksi> hasil = new ArrayList<>();
+        for (Transaksi transaksi : riwayatTransaksi) {
+            hasil.add(new DataTransaksi(
+                    transaksi.getIdIkan(), transaksi.getNamaIkan(),
+                    transaksi.getJenisTransaksi(), transaksi.getTanggal(),
+                    transaksi.getHargaLama(), transaksi.getHargaBaru()));
+        }
+        return hasil;
+    }
+
     // Memastikan input penambahan ikan memiliki nilai yang valid.
     private void validasiInputTambah(String nama, double hargaPerKg, double stokKg) {
         if (nama == null || nama.trim().isEmpty()) {
@@ -502,11 +589,54 @@ public class ManajemenIkan {
         return String.format(LOKAL_INDONESIA, "Rp %,.2f", harga);
     }
 
+    // Mengubah jenis lama menjadi salah satu jenis baru saat membaca data.
+    private String normalisasiJenisData(String nama, String jenis) {
+        for (String jenisBaru : getDaftarJenisIkan()) {
+            if (jenisBaru.equalsIgnoreCase(jenis.trim())) {
+                return jenisBaru;
+            }
+        }
+
+        // Data versi lama hanya menyimpan kategori air asin atau air tawar.
+        // Nama ikan yang dikenal dipetakan ke class baru agar data lama tetap terbaca.
+        String namaKecil = nama == null ? "" : nama.trim().toLowerCase(Locale.ROOT);
+        if (namaKecil.contains("tongkol")) return "Ikan Tongkol";
+        if (namaKecil.contains("pari")) return "Ikan Pari";
+        if (namaKecil.contains("bawal")) return "Ikan Bawal Putih";
+        if (namaKecil.contains("patin") || namaKecil.contains("manyung")) {
+            return "Ikan Manyung";
+        }
+        if (namaKecil.contains("teri")) return "Ikan Teri";
+        if (namaKecil.contains("salmon") || namaKecil.contains("sarden")) {
+            return "Ikan Sarden";
+        }
+        if (namaKecil.contains("udang") || namaKecil.contains("cumi")) {
+            return "Ikan Cumi";
+        }
+        if ("Ikan Air Tawar".equalsIgnoreCase(jenis.trim())) {
+            return "Ikan Bandeng";
+        }
+        if ("Ikan Air Asin".equalsIgnoreCase(jenis.trim())) {
+            return "Ikan Tongkol";
+        }
+        return null;
+    }
+
     // Membaca seluruh data ikan dari file penyimpanan.
     private void muatData() {
-        File file = new File(FILE_DATA);
+        File fileAktif = new File(FILE_DATA).getAbsoluteFile();
+        muatDataDariFile(fileAktif);
 
-        // Jika file belum ada, aplikasi dimulai dengan data kosong.
+        // Saat dijalankan dari workspace induk, baca juga file milik project.
+        File fileProject = new File("tugas terakhir pbo", FILE_DATA)
+                .getAbsoluteFile();
+        if (!fileAktif.equals(fileProject)) {
+            muatDataDariFile(fileProject);
+        }
+    }
+
+    // Membaca satu file data dan menambahkan seluruh baris valid ke daftar ikan.
+    private void muatDataDariFile(File file) {
         if (!file.exists()) {
             return;
         }
@@ -526,7 +656,10 @@ public class ManajemenIkan {
                 try {
                     int id = Integer.parseInt(bagian[0]);
                     String nama = bagian[1];
-                    String jenis = bagian[2];
+                    String jenis = normalisasiJenisData(bagian[1], bagian[2]);
+                    if (jenis == null) {
+                        continue;
+                    }
                     double hargaPerKg = Double.parseDouble(bagian[3]);
                     double stokKg = Double.parseDouble(bagian[4]);
                     LocalDate tanggalMasuk = bagian.length == 6
@@ -535,9 +668,18 @@ public class ManajemenIkan {
                     // Mencari data lama agar data duplikat dari file ikut digabung.
                     Ikan ikanLama = cariIkanByNamaDanJenis(nama, jenis);
                     if (ikanLama == null) {
+                        // Jika dua file memiliki ID yang sama, buat ID baru
+                        // agar pilihan pada form pengurangan tetap menunjuk data yang benar.
+                        int idTersedia = id;
+                        while (cariIkanById(idTersedia) != null) {
+                            idTersedia = idBerikutnya++;
+                        }
                         // Membuat kembali objek ikan dan memasukkannya ke ArrayList.
                         daftarIkan.add(buatIkan(
-                                id, nama, jenis, hargaPerKg, stokKg, tanggalMasuk));
+                                idTersedia, nama, jenis, hargaPerKg, stokKg, tanggalMasuk));
+                        if (idTersedia >= idBerikutnya) {
+                            idBerikutnya = idTersedia + 1;
+                        }
                     } else {
                         // Menambahkan stok duplikat dan mempertahankan harga pertama.
                         ikanLama.setStokKg(ikanLama.getStokKg() + stokKg);
@@ -647,7 +789,51 @@ public class ManajemenIkan {
         }
     }
 
-    // Inner class untuk menyimpan satu catatan transaksi.
+    // DTO read-only untuk menampilkan satu catatan transaksi pada JTable.
+    public static final class DataTransaksi {
+        private final int idIkan;
+        private final String namaIkan;
+        private final String jenisTransaksi;
+        private final LocalDate tanggal;
+        private final Double hargaLama;
+        private final Double hargaBaru;
+
+        private DataTransaksi(int idIkan, String namaIkan, String jenisTransaksi,
+                              LocalDate tanggal, Double hargaLama, Double hargaBaru) {
+            this.idIkan = idIkan;
+            this.namaIkan = namaIkan;
+            this.jenisTransaksi = jenisTransaksi;
+            this.tanggal = tanggal;
+            this.hargaLama = hargaLama;
+            this.hargaBaru = hargaBaru;
+        }
+
+        public int getIdIkan() {
+            return idIkan;
+        }
+
+        public String getNamaIkan() {
+            return namaIkan;
+        }
+
+        public String getJenisTransaksi() {
+            return jenisTransaksi;
+        }
+
+        public LocalDate getTanggal() {
+            return tanggal;
+        }
+
+        public Double getHargaLama() {
+            return hargaLama;
+        }
+
+        public Double getHargaBaru() {
+            return hargaBaru;
+        }
+    }
+
+    // Inner class lama untuk menyimpan satu catatan transaksi.
     private static class Transaksi {
 
         // Menyimpan ID ikan yang terkait dengan transaksi.

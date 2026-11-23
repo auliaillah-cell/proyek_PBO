@@ -13,9 +13,13 @@ import java.time.temporal.ChronoUnit;
 // Class Ikan dibuat abstract karena menjadi class induk untuk berbagai jenis ikan.
 public abstract class Ikan {
 
-    // Menyimpan dua pilihan kategori ikan yang dapat dipilih pengguna.
+    // Menyimpan dua puluh pilihan jenis ikan air asin yang dapat dipilih pengguna.
     private static final ArrayList<String> DAFTAR_JENIS = new ArrayList<>(Arrays.asList(
-        "Ikan Air Tawar", "Ikan Air Asin"
+        "Ikan Tongkol", "Ikan Cakalang", "Ikan Tuna", "Ikan Kembung",
+        "Ikan Tenggiri", "Ikan Bawal Putih", "Ikan Kakap", "Ikan Kerapu",
+        "Ikan Baronang", "Ikan Layang", "Ikan Selar", "Ikan Teri",
+        "Ikan Bandeng", "Ikan Manyung", "Ikan Pari", "Ikan Cumi",
+        "Ikan Lemuru", "Ikan Dorang", "Ikan Tongkol Komo", "Ikan Sarden"
     ));
 
     // Menyimpan ID unik untuk setiap data ikan.

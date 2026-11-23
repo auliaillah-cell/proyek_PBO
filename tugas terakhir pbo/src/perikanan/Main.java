@@ -32,15 +32,19 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.text.NumberFormat;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -48,10 +52,16 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.JTable;
 import javax.swing.Timer;
 import javax.swing.UIManager;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.border.AbstractBorder;
 import javax.swing.plaf.basic.BasicScrollBarUI;
+import javax.swing.table.AbstractTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.JTableHeader;
+import javax.swing.table.TableCellRenderer;
 
 // Class Main menjadi jendela utama aplikasi desktop.
 public class Main extends JFrame {
@@ -66,9 +76,24 @@ public class Main extends JFrame {
     private static final Color TEKS_TERANG = new Color(242, 249, 252);
     private static final Color TEKS_REDUP = new Color(163, 190, 207);
 
+    // Palet tabel riwayat: satu aksen teal dengan status lembut.
+    private static final Color TABEL_HEADER = new Color(10, 67, 78);
+    private static final Color TABEL_BARIS_A = new Color(12, 48, 61);
+    private static final Color TABEL_BARIS_B = new Color(14, 53, 66);
+    private static final Color TABEL_HOVER = new Color(35, 111, 119);
+    private static final Color TABEL_PILIH = new Color(25, 122, 132);
+    private static final Color TABEL_GARIS = new Color(125, 205, 210, 35);
+    private static final Color TABEL_KOSONG = new Color(148, 171, 181);
+    private static final Color BADGE_BIRU = new Color(78, 143, 187);
+    private static final Color BADGE_TOSCA = new Color(53, 145, 137);
+    private static final Color BADGE_AMBER = new Color(171, 124, 55);
+    private static final Color BADGE_UNGU = new Color(125, 101, 157);
+
     // Nama font yang dipakai; Java otomatis mencari pengganti bila tidak ada.
     private static final String FONT_UI = "Segoe UI";
     private static final String FONT_KODE = "Consolas";
+    private static final DateTimeFormatter FORMAT_TANGGAL_TABEL =
+            DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
     // Menyimpan objek yang mengelola data ikan dan transaksi.
     private final ManajemenIkan manajemenIkan = new ManajemenIkan();
@@ -82,6 +107,7 @@ public class Main extends JFrame {
     // Komponen output disimpan agar dapat dikembalikan setelah form ditutup.
     private JLabel judulOutput;
     private JScrollPane scrollOutput;
+    private int barisRiwayatHover = -1;
 
     // Referensi komponen animasi yang hanya mengubah presentasi.
     private PanelLatar panelUtama;
@@ -187,19 +213,31 @@ public class Main extends JFrame {
         scrollOutput.getVerticalScrollBar().setPreferredSize(new Dimension(12, 0));
         scrollOutput.getHorizontalScrollBar().setPreferredSize(new Dimension(0, 12));
 
-        judulOutput = new JLabel("HASIL OPERASI");
-        judulOutput.setForeground(TEAL_TERANG);
-        judulOutput.setFont(new Font(FONT_UI, Font.BOLD, 12));
-        judulOutput.setBorder(BorderFactory.createEmptyBorder(0, 4, 8, 0));
-
         PanelKaca panel = new PanelKaca(new BorderLayout(),
                 new Color(255, 255, 255, 38), new Color(255, 255, 255, 25), 24);
-        panel.add(judulOutput, BorderLayout.NORTH);
+        panel.add(buatHeaderOutput("HASIL OPERASI"), BorderLayout.NORTH);
         panel.add(scrollOutput, BorderLayout.CENTER);
         return panel;
     }
 
-    // Panel menu berisi tujuh tombol operasi aplikasi.
+    // Header panel dengan garis aksen tipis agar judul lebih tegas dan modern.
+    private JPanel buatHeaderOutput(String teks) {
+        JPanel header = new JPanel(new BorderLayout(0, 6));
+        header.setOpaque(false);
+        judulOutput = new JLabel(teks);
+        judulOutput.setForeground(TEAL_TERANG);
+        judulOutput.setFont(new Font(FONT_UI, Font.BOLD, 14));
+        judulOutput.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        JPanel garis = new JPanel();
+        garis.setOpaque(true);
+        garis.setBackground(new Color(95, 212, 217, 150));
+        garis.setPreferredSize(new Dimension(0, 1));
+        header.add(judulOutput, BorderLayout.NORTH);
+        header.add(garis, BorderLayout.SOUTH);
+        return header;
+    }
+
+    // Panel menu berisi delapan tombol operasi aplikasi.
     private PanelKaca buatPanelMenu() {
         JLabel judulMenu = new JLabel("MENU UTAMA", SwingConstants.LEFT);
         judulMenu.setForeground(EMAS);
@@ -212,6 +250,8 @@ public class Main extends JFrame {
 
         tambahTombolMenu(daftarTombol, "Tambah Data Ikan", TEAL,
                 this::tambahDataIkan);
+        tambahTombolMenu(daftarTombol, "Pengurangan Stok Ikan", TEAL,
+                this::penguranganStokIkan);
         tambahTombolMenu(daftarTombol, "Tampilkan Data", TEAL,
                 this::tampilkanDataIkan);
         tambahTombolMenu(daftarTombol, "Ubah Data", TEAL,
@@ -260,30 +300,24 @@ public class Main extends JFrame {
     // Menampilkan form tambah data langsung di panel tengah aplikasi.
     private void tambahDataIkan() {
         JPanel form = panelForm("FORM TAMBAH DATA IKAN");
-        JTextField fieldNama = new JTextField();
         JComboBox<String> pilihanJenis = new JComboBox<>(manajemenIkan.getDaftarJenisIkan());
         JTextField fieldHarga = new JTextField();
         JTextField fieldStok = new JTextField();
         JLabel pesan = labelPesanForm();
 
-        tambahBarisForm(form, 0, "Nama ikan", fieldNama);
-        tambahBarisForm(form, 1, "Jenis ikan", pilihanJenis);
-        tambahBarisForm(form, 2, "Harga per kilogram", fieldHarga);
-        tambahBarisForm(form, 3, "Stok (kg)", fieldStok);
+        tambahBarisForm(form, 0, "Jenis ikan", pilihanJenis);
+        tambahBarisForm(form, 1, "Harga per kilogram", fieldHarga);
+        tambahBarisForm(form, 2, "Stok (kg)", fieldStok);
 
         JButton simpan = tombolForm("Simpan", TEAL);
         simpan.addActionListener(event -> {
-            String nama = fieldNama.getText().trim();
-            if (nama.isEmpty()) {
-                pesan.setText("Nama ikan wajib diisi.");
-                return;
-            }
             Double harga = angkaForm(fieldHarga, false, pesan);
             Double stok = angkaForm(fieldStok, true, pesan);
             if (harga == null || stok == null) {
                 return;
             }
             int nomorJenis = pilihanJenis.getSelectedIndex() + 1;
+            String nama = (String) pilihanJenis.getSelectedItem();
             tampilkanHasil(() -> manajemenIkan.tambahIkan(
                     nama, nomorJenis, harga, stok));
         });
@@ -292,6 +326,98 @@ public class Main extends JFrame {
         batal.addActionListener(event -> kembaliKeOutput());
         tambahTombolForm(form, simpan, batal, pesan);
         tampilkanForm(form, "FORM TAMBAH DATA IKAN");
+    }
+
+    // Menampilkan form untuk mengurangi stok ikan yang sudah tersimpan.
+    private void penguranganStokIkan() {
+        JPanel form = panelForm("FORM PENGURANGAN STOK IKAN");
+        Ikan[] daftarIkan = manajemenIkan.getDaftarIkan();
+        String[] pilihanData = new String[daftarIkan.length];
+        for (int i = 0; i < daftarIkan.length; i++) {
+            pilihanData[i] = daftarIkan[i].getNama() + " - "
+                    + daftarIkan[i].getJenis() + " (ID: "
+                    + daftarIkan[i].getId() + ")";
+        }
+
+        JComboBox<String> pilihanIkan = new JComboBox<>(pilihanData);
+        JTextField fieldTersedia = new JTextField();
+        JTextField fieldPengurangan = new JTextField();
+        JTextField fieldSisa = new JTextField();
+        JLabel pesan = labelPesanForm();
+
+        fieldTersedia.setEditable(false);
+        fieldSisa.setEditable(false);
+        tambahBarisForm(form, 0, "Jenis ikan", pilihanIkan);
+        tambahBarisForm(form, 1, "Stok tersedia (kg)", fieldTersedia);
+        tambahBarisForm(form, 2, "Jumlah pengurangan (kg)", fieldPengurangan);
+        tambahBarisForm(form, 3, "Sisa stok (kg)", fieldSisa);
+
+        Runnable perbaruiStok = () -> {
+            int indeks = pilihanIkan.getSelectedIndex();
+            if (indeks < 0 || indeks >= daftarIkan.length) {
+                fieldTersedia.setText("-");
+                fieldSisa.setText("-");
+                return;
+            }
+            double tersedia = daftarIkan[indeks].getStokKg();
+            fieldTersedia.setText(formatAngka(tersedia));
+            try {
+                double pengurangan = Double.parseDouble(
+                        fieldPengurangan.getText().trim().replace(',', '.'));
+                if (Double.isFinite(pengurangan) && pengurangan >= 0) {
+                    fieldSisa.setText(pengurangan <= tersedia
+                            ? formatAngka(tersedia - pengurangan)
+                            : "Tidak cukup");
+                    return;
+                }
+            } catch (NumberFormatException ex) {
+                // Sisa stok dikembalikan ke stok tersedia jika input belum valid.
+            }
+            fieldSisa.setText(formatAngka(tersedia));
+        };
+        pilihanIkan.addActionListener(event -> perbaruiStok.run());
+        fieldPengurangan.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent event) {
+                perbaruiStok.run();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent event) {
+                perbaruiStok.run();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent event) {
+                perbaruiStok.run();
+            }
+        });
+        perbaruiStok.run();
+
+        JButton kurangi = tombolForm("Kurangi Stok", TEAL);
+        kurangi.addActionListener(event -> {
+            int indeks = pilihanIkan.getSelectedIndex();
+            if (indeks < 0 || indeks >= daftarIkan.length) {
+                pesan.setText("Belum ada data ikan yang tersedia.");
+                return;
+            }
+            Double jumlah = angkaPenguranganForm(fieldPengurangan, pesan);
+            if (jumlah == null) {
+                return;
+            }
+            tampilkanHasil(() -> manajemenIkan.kurangiStokIkan(
+                    daftarIkan[indeks].getId(), jumlah));
+        });
+
+        JButton batal = tombolForm("Batal", MERAH);
+        batal.addActionListener(event -> {
+            fieldPengurangan.setText("");
+            fieldTersedia.setText("");
+            fieldSisa.setText("");
+            kembaliKeOutput();
+        });
+        tambahTombolForm(form, kurangi, batal, pesan);
+        tampilkanForm(form, "FORM PENGURANGAN STOK IKAN");
     }
 
     // Menampilkan seluruh data ikan pada area output.
@@ -458,7 +584,97 @@ public class Main extends JFrame {
 
     // Menampilkan riwayat transaksi.
     private void tampilkanRiwayat() {
-        tampilkanHasil(manajemenIkan::tampilkanRiwayatTransaksi);
+        List<ManajemenIkan.DataTransaksi> data =
+                manajemenIkan.getRiwayatTransaksiData();
+        panelOutput.removeAll();
+        panelOutput.add(buatHeaderOutput("RIWAYAT TRANSAKSI"), BorderLayout.NORTH);
+
+        if (data.isEmpty()) {
+            JLabel kosong = new JLabel("Belum ada transaksi", SwingConstants.CENTER);
+            kosong.setForeground(TABEL_KOSONG);
+            kosong.setFont(new Font(FONT_UI, Font.PLAIN, 14));
+            panelOutput.add(kosong, BorderLayout.CENTER);
+        } else {
+            panelOutput.add(buatTabelRiwayat(data), BorderLayout.CENTER);
+        }
+        panelOutput.revalidate();
+        panelOutput.repaint();
+        transisiKonten(null);
+    }
+
+    // Membuat tabel riwayat tanpa scroll horizontal.
+    private JScrollPane buatTabelRiwayat(List<ManajemenIkan.DataTransaksi> data) {
+        RiwayatTableModel model = new RiwayatTableModel(data);
+        RiwayatTable tabel = new RiwayatTable(model);
+        tabel.setFont(new Font(FONT_UI, Font.PLAIN, 13));
+        tabel.setForeground(TEKS_TERANG);
+        tabel.setBackground(TABEL_BARIS_A);
+        tabel.setRowHeight(36);
+        tabel.setShowGrid(false);
+        tabel.setIntercellSpacing(new Dimension(0, 1));
+        tabel.setFillsViewportHeight(true);
+        tabel.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+        tabel.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
+        tabel.setSelectionBackground(TABEL_PILIH);
+        tabel.setSelectionForeground(TEKS_TERANG);
+        tabel.setRowMargin(0);
+
+        JTableHeader header = tabel.getTableHeader();
+        header.setFont(new Font(FONT_UI, Font.BOLD, 12));
+        header.setForeground(TEKS_TERANG);
+        header.setBackground(TABEL_HEADER);
+        header.setOpaque(true);
+        header.setPreferredSize(new Dimension(0, 36));
+        header.setReorderingAllowed(false);
+        header.setDefaultRenderer(new HeaderTableCellRenderer());
+
+        RiwayatCellRenderer teksRenderer = new RiwayatCellRenderer();
+        BadgeCellRenderer badgeRenderer = new BadgeCellRenderer();
+        tabel.getColumnModel().getColumn(0).setCellRenderer(teksRenderer);
+        tabel.getColumnModel().getColumn(1).setCellRenderer(teksRenderer);
+        tabel.getColumnModel().getColumn(2).setCellRenderer(badgeRenderer);
+        tabel.getColumnModel().getColumn(3).setCellRenderer(teksRenderer);
+        tabel.getColumnModel().getColumn(4).setCellRenderer(teksRenderer);
+        tabel.getColumnModel().getColumn(5).setCellRenderer(teksRenderer);
+
+        int[] lebarAwal = {54, 170, 150, 100, 125, 125};
+        for (int i = 0; i < lebarAwal.length; i++) {
+            tabel.getColumnModel().getColumn(i).setPreferredWidth(lebarAwal[i]);
+        }
+
+        JScrollPane scroll = new JScrollPane(tabel);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.getVerticalScrollBar().setUI(new ScrollBarTipis());
+        scroll.getVerticalScrollBar().setPreferredSize(new Dimension(10, 0));
+        scroll.getHorizontalScrollBar().setPreferredSize(new Dimension(0, 0));
+        return scroll;
+    }
+
+    // Mengambil warna baris berdasarkan zebra, hover, dan seleksi.
+    private Color warnaBaris(JTable tabel, int baris, boolean dipilih) {
+        if (dipilih) {
+            return TABEL_PILIH;
+        }
+        if (baris == barisRiwayatHover) {
+            return TABEL_HOVER;
+        }
+        return baris % 2 == 0 ? TABEL_BARIS_A : TABEL_BARIS_B;
+    }
+
+    // Memformat nilai harga tanpa desimal agar ringkas seperti Rp 25.000.
+    private String formatRupiah(Object nilai) {
+        if (!(nilai instanceof Number)) {
+            return "—";
+        }
+        NumberFormat format = NumberFormat.getCurrencyInstance(
+                Locale.forLanguageTag("id-ID"));
+        format.setMaximumFractionDigits(0);
+        format.setMinimumFractionDigits(0);
+        return format.format(((Number) nilai).doubleValue())
+                .replace("Rp", "Rp ").replace(" ", "").trim();
     }
 
     // Menutup aplikasi melalui tombol Keluar.
@@ -513,11 +729,32 @@ public class Main extends JFrame {
         inputGbc.insets = new Insets(5, 0, 5, 0);
         komponen.setPreferredSize(new Dimension(300, 34));
         komponen.setFont(new Font(FONT_UI, Font.PLAIN, 14));
-        komponen.setForeground(Color.WHITE);
+        // Input memakai latar terang, jadi teks harus berwarna gelap agar terbaca.
+        komponen.setForeground(new Color(20, 45, 60));
+        komponen.setBackground(new Color(248, 252, 253));
+        komponen.setOpaque(true);
         if (komponen instanceof JTextField) {
-            ((JTextField) komponen).setCaretColor(TEAL_TERANG);
+            JTextField field = (JTextField) komponen;
+            field.setCaretColor(new Color(14, 116, 144));
+        } else if (komponen instanceof JComboBox<?>) {
+            JComboBox<?> comboBox = (JComboBox<?>) komponen;
+            comboBox.setRenderer(new DefaultListCellRenderer() {
+                @Override
+                public Component getListCellRendererComponent(JList<?> list,
+                        Object value, int index, boolean isSelected,
+                        boolean cellHasFocus) {
+                    JLabel cell = (JLabel) super.getListCellRendererComponent(
+                            list, value, index, isSelected, cellHasFocus);
+                    cell.setFont(new Font(FONT_UI, Font.PLAIN, 14));
+                    cell.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+                    cell.setForeground(isSelected ? Color.WHITE
+                            : new Color(20, 45, 60));
+                    cell.setBackground(isSelected ? new Color(14, 165, 180)
+                            : new Color(248, 252, 253));
+                    return cell;
+                }
+            });
         }
-        komponen.setOpaque(false);
         komponen.setBorder(new BorderInputKaca());
         form.add(komponen, inputGbc);
     }
@@ -582,11 +819,7 @@ public class Main extends JFrame {
     // Mengembalikan panel tengah ke tampilan hasil operasi.
     private void kembaliKeOutput() {
         panelOutput.removeAll();
-        JLabel judul = new JLabel("HASIL OPERASI");
-        judul.setForeground(TEAL_TERANG);
-        judul.setFont(new Font(FONT_UI, Font.BOLD, 12));
-        judul.setBorder(BorderFactory.createEmptyBorder(0, 4, 8, 0));
-        panelOutput.add(judul, BorderLayout.NORTH);
+        panelOutput.add(buatHeaderOutput("HASIL OPERASI"), BorderLayout.NORTH);
         panelOutput.add(scrollOutput, BorderLayout.CENTER);
         panelOutput.revalidate();
         panelOutput.repaint();
@@ -609,6 +842,25 @@ public class Main extends JFrame {
                 ? "Stok harus berupa angka nol atau lebih."
                 : "Harga harus berupa angka lebih besar dari 0.");
         return null;
+    }
+
+    // Mengubah input jumlah pengurangan menjadi angka positif.
+    private Double angkaPenguranganForm(JTextField field, JLabel pesan) {
+        try {
+            double angka = Double.parseDouble(field.getText().trim().replace(',', '.'));
+            if (Double.isFinite(angka) && angka > 0) {
+                return angka;
+            }
+        } catch (NumberFormatException ex) {
+            // Pesan validasi ditampilkan pada bagian bawah form.
+        }
+        pesan.setText("Jumlah pengurangan harus lebih besar dari 0.");
+        return null;
+    }
+
+    // Menampilkan angka stok dengan format ringkas pada form.
+    private String formatAngka(double angka) {
+        return String.format(java.util.Locale.US, "%.2f", angka);
     }
 
     // Mengubah teks field menjadi ID positif dengan validasi.
@@ -750,7 +1002,7 @@ public class Main extends JFrame {
     // Panel menu yang menggambar satu pill aktif di bawah tombol.
     private static class SidebarPanel extends JPanel {
         SidebarPanel() {
-            super(new GridLayout(7, 1, 0, 9));
+            super(new GridLayout(8, 1, 0, 9));
             setOpaque(false);
         }
 
@@ -762,6 +1014,213 @@ public class Main extends JFrame {
                 }
             }
             repaint();
+        }
+    }
+
+    // Model tabel yang mengambil data transaksi langsung dari ManajemenIkan.
+    private static class RiwayatTableModel extends AbstractTableModel {
+        private static final String[] KOLOM = {
+            "ID", "NAMA IKAN", "JENIS TRANSAKSI", "TANGGAL",
+            "HARGA LAMA", "HARGA BARU"
+        };
+        private final List<ManajemenIkan.DataTransaksi> data;
+
+        RiwayatTableModel(List<ManajemenIkan.DataTransaksi> data) {
+            this.data = new ArrayList<>(data);
+        }
+
+        @Override
+        public int getRowCount() {
+            return data.size();
+        }
+
+        @Override
+        public int getColumnCount() {
+            return KOLOM.length;
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            return KOLOM[column];
+        }
+
+        @Override
+        public Object getValueAt(int rowIndex, int columnIndex) {
+            ManajemenIkan.DataTransaksi transaksi = data.get(rowIndex);
+            switch (columnIndex) {
+                case 0:
+                    return transaksi.getIdIkan();
+                case 1:
+                    return transaksi.getNamaIkan();
+                case 2:
+                    return transaksi.getJenisTransaksi();
+                case 3:
+                    return transaksi.getTanggal() == null ? null
+                            : transaksi.getTanggal().format(FORMAT_TANGGAL_TABEL);
+                case 4:
+                    return transaksi.getHargaLama();
+                case 5:
+                    return transaksi.getHargaBaru();
+                default:
+                    return null;
+            }
+        }
+
+        @Override
+        public Class<?> getColumnClass(int columnIndex) {
+            return columnIndex == 0 ? Integer.class
+                    : columnIndex >= 4 ? Double.class : String.class;
+        }
+
+        @Override
+        public boolean isCellEditable(int rowIndex, int columnIndex) {
+            return false;
+        }
+    }
+
+    // JTable khusus untuk tooltip teks panjang dan pelacakan baris hover.
+    private class RiwayatTable extends JTable {
+        RiwayatTable(RiwayatTableModel model) {
+            super(model);
+            setToolTipText("");
+            addMouseMotionListener(new MouseAdapter() {
+                @Override
+                public void mouseMoved(MouseEvent event) {
+                    int baris = rowAtPoint(event.getPoint());
+                    if (barisRiwayatHover != baris) {
+                        barisRiwayatHover = baris;
+                        repaint();
+                    }
+                }
+            });
+            addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseExited(MouseEvent event) {
+                    barisRiwayatHover = -1;
+                    repaint();
+                }
+            });
+        }
+
+        @Override
+        public String getToolTipText(MouseEvent event) {
+            int baris = rowAtPoint(event.getPoint());
+            int kolom = columnAtPoint(event.getPoint());
+            if (baris < 0 || kolom < 0) {
+                return null;
+            }
+            Object nilai = getValueAt(baris, kolom);
+            if (nilai == null) {
+                return null;
+            }
+            String teks = kolom >= 4 ? formatRupiah(nilai) : nilai.toString();
+            return teks.length() > 18 ? teks : null;
+        }
+    }
+
+    // Renderer isi tabel dengan padding, zebra halus, dan alignment per kolom.
+    private class RiwayatCellRenderer extends DefaultTableCellRenderer {
+        RiwayatCellRenderer() {
+            setOpaque(true);
+            setFont(new Font(FONT_UI, Font.PLAIN, 13));
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable tabel, Object nilai,
+                boolean dipilih, boolean fokus, int baris, int kolom) {
+            Object tampil = nilai;
+            if (kolom >= 4) {
+                tampil = nilai == null ? "—" : formatRupiah(nilai);
+            } else if (nilai == null || nilai.toString().trim().isEmpty()) {
+                tampil = "—";
+            }
+            super.getTableCellRendererComponent(tabel, tampil, dipilih, fokus,
+                    baris, kolom);
+            setBackground(warnaBaris(tabel, baris, dipilih));
+            setForeground(nilai == null ? TABEL_KOSONG : TEKS_TERANG);
+            setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(0, 0, 1, 0, TABEL_GARIS),
+                    BorderFactory.createEmptyBorder(0, 12, 0, 12)));
+            if (kolom == 0 || kolom == 3) {
+                setHorizontalAlignment(SwingConstants.CENTER);
+            } else if (kolom >= 4) {
+                setHorizontalAlignment(SwingConstants.RIGHT);
+            } else {
+                setHorizontalAlignment(SwingConstants.LEFT);
+            }
+            return this;
+        }
+    }
+
+    // Renderer header tabel dengan warna teal gelap dan tipografi ringkas.
+    private static class HeaderTableCellRenderer extends DefaultTableCellRenderer {
+        HeaderTableCellRenderer() {
+            setOpaque(true);
+            setHorizontalAlignment(SwingConstants.LEFT);
+            setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 12));
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable tabel, Object nilai,
+                boolean dipilih, boolean fokus, int baris, int kolom) {
+            super.getTableCellRendererComponent(tabel, nilai, dipilih, fokus,
+                    baris, kolom);
+            setBackground(TABEL_HEADER);
+            setForeground(TEKS_TERANG);
+            setFont(new Font(FONT_UI, Font.BOLD, 12));
+            return this;
+        }
+    }
+
+    // Badge rounded untuk membedakan jenis transaksi secara lembut.
+    private class BadgeCellRenderer extends JPanel implements TableCellRenderer {
+        private String teks = "";
+        private Color warnaBadge = BADGE_TOSCA;
+        private Color warnaTeks = TEKS_TERANG;
+
+        BadgeCellRenderer() {
+            setOpaque(true);
+            setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable tabel, Object nilai,
+                boolean dipilih, boolean fokus, int baris, int kolom) {
+            teks = nilai == null || nilai.toString().trim().isEmpty()
+                    ? "—" : nilai.toString();
+            warnaBadge = warnaBadge(teks);
+            setBackground(warnaBaris(tabel, baris, dipilih));
+            return this;
+        }
+
+        private Color warnaBadge(String jenis) {
+            if (jenis.contains("Tambah Data")) return BADGE_BIRU;
+            if (jenis.contains("Tambah Stok")) return BADGE_TOSCA;
+            if (jenis.contains("Pengurangan Stok")) return BADGE_AMBER;
+            if (jenis.contains("Ubah Harga")) return BADGE_UNGU;
+            return new Color(91, 113, 122);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+            Font font = new Font(FONT_UI, Font.BOLD, 12);
+            g2.setFont(font);
+            FontMetrics metrics = g2.getFontMetrics();
+            int lebar = metrics.stringWidth(teks) + 18;
+            int tinggi = 22;
+            int x = 12;
+            int y = (getHeight() - tinggi) / 2;
+            g2.setColor(new Color(warnaBadge.getRed(), warnaBadge.getGreen(),
+                    warnaBadge.getBlue(), 190));
+            g2.fillRoundRect(x, y, lebar, tinggi, 12, 12);
+            g2.setColor(warnaTeks);
+            g2.drawString(teks, x + 9, y + (tinggi - metrics.getHeight()) / 2
+                    + metrics.getAscent());
+            g2.dispose();
         }
     }
 
